@@ -1,0 +1,41 @@
+name: Advanced Logging & Alerts
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  run_script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Run script and log output
+        run: |
+          python advanced-logger/main.py > advanced-logger/output.log 2>&1 || exit 1
+
+      - name: Upload log artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-logs
+          path: advanced-logger/output.log
+          retention-days: 7  # Auto-delete logs after 7 days
+
+  notify_failure:
+    if: failure()  # Only run if run_script fails
+    needs: run_script
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack Alert
+        env:
+          WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H "Content-type: application/json" \
+          --data "{\"text\":\"🚨 Workflow Failed!\nRepository: $GITHUB_REPOSITORY\nLogs: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}" \
+          $WEBHOOK_URL
